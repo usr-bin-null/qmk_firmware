@@ -32,10 +32,10 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  *                               |      |ace   | End  |  | PgDn |      |      |
  *                               `--------------------'  `--------------------'
  */
-[BASE] = LAYOUT_dactyl(  // layer 0 : default
+[BASE] = LAYOUT(  // layer 0 : default
         // left hand
-           KC_EQL,            KC_1,           KC_2,     KC_3,     KC_4,  KC_5,
-          KC_DELT,         KC_QUOT,        KC_COMM,   KC_DOT,     KC_P,  KC_Y,
+          KC_EQL,             KC_1,           KC_2,     KC_3,     KC_4,  KC_5,
+          KC_DEL,          KC_QUOT,        KC_COMM,   KC_DOT,     KC_P,  KC_Y,
           KC_BSPC,            KC_A,           KC_O,     KC_E,     KC_U,  KC_I,
           KC_LSFT,  CTL_T(KC_SCLN),           KC_Q,     KC_J,     KC_K,  KC_X,
   LT(SYMB,KC_GRV),          KC_EQL,  LALT(KC_LSFT),  KC_LEFT,  KC_RGHT,
@@ -47,7 +47,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                              KC_F,   KC_G,     KC_C,     KC_R,            KC_L,         KC_BSLS,
                              KC_D,   KC_H,     KC_T,     KC_N,  LT(MDIA, KC_S),  GUI_T(KC_SLSH),
                              KC_B,   KC_M,     KC_W,     KC_V,     CTL_T(KC_Z),         KC_RSFT,
-                                    KC_UP,  KC_DOWN,  KC_LBRC,         KC_RBRC,          KC_FN1,
+                                    KC_UP,  KC_DOWN,  KC_LBRC,         KC_RBRC,          TT(SYMB),
           KC_RALT,  CTL_T(KC_ESC),
           KC_PGUP,
           KC_PGDN, KC_TAB, KC_ENT
@@ -63,7 +63,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * |------+------+------+------+------+------|                    |------+------+------+------+------+------|
  * |      |   %  |   ^  |   [  |   ]  |   ~  |                    |   &  |   1  |   2  |   3  |   \  |      |
  * |------+------+------+------+------+------'                    `------+------+------+------+------+------|
- * |RESET |      |      |      |      |                                  |      |   .  |   0  |   =  |      |
+ * |QK_BOOT |      |      |      |      |                                  |      |   .  |   0  |   =  |      |
  * `----------------------------------'                                  `----------------------------------'
  *                                      ,-------------.  ,-------------.
  *                                      |      |      |  |      |      |
@@ -74,13 +74,13 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  *                               `--------------------'  `--------------------'
  */
 // SYMBOLS
-[SYMB] = LAYOUT_dactyl(
+[SYMB] = LAYOUT(
        // left hand
           VRSN,    KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,
        KC_TRNS,  KC_EXLM,    KC_AT,  KC_LCBR,  KC_RCBR,  KC_PIPE,
        KC_TRNS,  KC_HASH,   KC_DLR,  KC_LPRN,  KC_RPRN,   KC_GRV,
        KC_TRNS,  KC_PERC,  KC_CIRC,  KC_LBRC,  KC_RBRC,  KC_TILD,
-         RESET,  KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,
+       QK_BOOT,  KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,
                                                          KC_TRNS,  KC_TRNS,
                                                                    KC_TRNS,
                                                KC_TRNS,  KC_TRNS,  KC_TRNS,
@@ -116,12 +116,12 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  *
  */
 // MEDIA AND MOUSE
-[MDIA] = LAYOUT_dactyl(
+[MDIA] = LAYOUT(
        KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,
-       KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_MS_U,  KC_TRNS,  KC_TRNS,
-       KC_TRNS,  KC_TRNS,  KC_MS_L,  KC_MS_D,  KC_MS_R,  KC_TRNS,
+       KC_TRNS,  KC_TRNS,  KC_TRNS,  MS_UP,    KC_TRNS,  KC_TRNS,
+       KC_TRNS,  KC_TRNS,  MS_LEFT,  MS_DOWN,  MS_RGHT,  KC_TRNS,
        KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_TRNS,
-       KC_TRNS,  KC_TRNS,  KC_TRNS,  KC_BTN1,  KC_BTN2,
+       KC_TRNS,  KC_TRNS,  KC_TRNS,  MS_BTN1,  MS_BTN2,
                                                          KC_TRNS,  KC_TRNS,
                                                                    KC_TRNS,
                                                KC_TRNS,  KC_TRNS,  KC_TRNS,
@@ -137,28 +137,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 ),
 };
 
-const uint16_t PROGMEM fn_actions[] = {
-    [1] = ACTION_LAYER_TAP_TOGGLE(SYMB)                // FN1 - Momentary Layer 1 (Symbols)
-};
-
-const macro_t *action_get_macro(keyrecord_t *record, uint8_t id, uint8_t opt)
-{
-  // MACRODOWN only works in this function
-  switch(id) {
-    case 0:
-      if (record->event.pressed) {
-        SEND_STRING (QMK_KEYBOARD "/" QMK_KEYMAP " @ " QMK_VERSION);
-      }
-      break;
-    case 1:
-      if (record->event.pressed) { // For resetting EEPROM
-        eeconfig_init();
-      }
-      break;
-  }
-  return MACRO_NONE;
-};
-
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   switch (keycode) {
     case VRSN:
@@ -170,12 +148,3 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   }
   return true;
 }
-
-// Runs just one time when the keyboard initializes.
-void matrix_init_user(void) {
-
-};
-
-
-// Runs constantly in the background, in a loop.
-void matrix_scan_user(void) {};

@@ -14,49 +14,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef LEADER_ENABLE
-
 #include "process_leader.h"
-
-#ifndef LEADER_TIMEOUT
-  #define LEADER_TIMEOUT 300
-#endif
-
-__attribute__ ((weak))
-void leader_start(void) {}
-
-__attribute__ ((weak))
-void leader_end(void) {}
-
-// Leader key stuff
-bool leading = false;
-uint16_t leader_time = 0;
-
-uint16_t leader_sequence[5] = {0, 0, 0, 0, 0};
-uint8_t leader_sequence_size = 0;
+#include "leader.h"
+#include "quantum_keycodes.h"
 
 bool process_leader(uint16_t keycode, keyrecord_t *record) {
-  // Leader key set-up
-  if (record->event.pressed) {
-    if (!leading && keycode == KC_LEAD) {
-      leader_start();
-      leading = true;
-      leader_time = timer_read();
-      leader_sequence_size = 0;
-      leader_sequence[0] = 0;
-      leader_sequence[1] = 0;
-      leader_sequence[2] = 0;
-      leader_sequence[3] = 0;
-      leader_sequence[4] = 0;
-      return false;
-    }
-    if (leading && timer_elapsed(leader_time) < LEADER_TIMEOUT) {
-      leader_sequence[leader_sequence_size] = keycode;
-      leader_sequence_size++;
-      return false;
-    }
-  }
-  return true;
-}
-
+    if (record->event.pressed) {
+        if (leader_sequence_active() && !leader_sequence_timed_out()) {
+#ifndef LEADER_KEY_STRICT_KEY_PROCESSING
+            keycode = get_tap_keycode(keycode);
 #endif
+
+            if (!leader_sequence_add(keycode)) {
+                leader_end();
+
+                return true;
+            }
+
+#ifdef LEADER_PER_KEY_TIMING
+            leader_reset_timer();
+#endif
+
+            return false;
+        } else if (keycode == QK_LEADER) {
+            leader_start();
+        }
+    }
+
+    return true;
+}

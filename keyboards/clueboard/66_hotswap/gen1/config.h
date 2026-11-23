@@ -1,51 +1,42 @@
+/*
+ * Copyright 2017 skully <skullydazed@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
-#include "config_common.h"
 
-#define PRODUCT_ID      0x2390
-#define DEVICE_VER      0x0001
-
-/* key matrix size */
-#define MATRIX_ROWS 10
-#define MATRIX_COLS 8
-
-// ROWS: Top to bottom, COLS: Left to right
-/* Row pin configuration
-* row: 0  1  2  3  4  5  6  7  8  9
-* pin: B2 C7 C6 B6 B5 B0 B3 D5 D3 D2
-*/
-
-#define MATRIX_ROW_PINS { B2, C7, C6, B6, B5, B0, B3, D5, D3, D2 }
-/* Column pin configuration
- * col: 0  1  2  3  4  5  6  7
- * pin: F0 F1 F4 F5 F6 F7 E6 B1
+/*
+ * Feature disable options
+ *  These options are also useful to firmware size reduction.
  */
-#define MATRIX_COL_PINS { F0, F1, F4, F5, F6, F7, E6, B1 }
-#define UNUSED_PINS
 
-/* Speaker configuration
- */
-#define B7_AUDIO
-#define NO_MUSIC_MODE
-#define AUDIO_CLICKY
+/* disable debug print */
+//#define NO_DEBUG
 
-/* Backlight configuration
- */
-#define BACKLIGHT_LEVELS 1
+/* disable print */
+//#define NO_PRINT
 
-/* Underlight configuration
- */
-#define RGB_DI_PIN D7
-#define RGBLED_NUM 26     // Number of LEDs
-#define RGBLIGHT_HUE_STEP 32
-#define RGBLIGHT_SAT_STEP 17
-#define RGBLIGHT_VAL_STEP 17
+/* disable action features */
+//#define NO_ACTION_LAYER
+//#define NO_ACTION_TAPPING
+//#define NO_ACTION_ONESHOT
 
-#define RGBLIGHT_ANIMATIONS
-#define RGBLIGHT_EFFECT_BREATHE_CENTER 1
-#define RGBLIGHT_EFFECT_BREATHE_MAX 200
-#define RGBLIGHT_EFFECT_CHRISTMAS_INTERVAL 666*2
-#define RGBLIGHT_EFFECT_CHRISTMAS_STEP 1
-#define RGBLIGHT_EFFECT_KNIGHT_LENGTH 4   // How many LEDs wide to light up
-#define RGBLIGHT_EFFECT_KNIGHT_OFFSET 16   // The led to start at
-#define RGBLIGHT_EFFECT_KNIGHT_LED_NUM 8  // How many LEDs to travel
-#define RGBLIGHT_EFFECT_SNAKE_LENGTH 4    // How many LEDs wide to light up
+#define IS31FL3731_I2C_ADDRESS_1 IS31FL3731_I2C_ADDRESS_GND
+#define I2C1_SCL_PIN B8
+#define I2C1_SDA_PIN B9
+
+#define AUDIO_PIN A5
+#define AUDIO_PIN_ALT A4
+#define AUDIO_PIN_ALT_AS_NEGATIVE

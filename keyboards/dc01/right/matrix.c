@@ -15,8 +15,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <stdint.h>
-#include <stdbool.h>
 #if defined(__AVR__)
 #include <avr/io.h>
 #include <avr/wdt.h>
@@ -32,15 +30,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "i2c_slave.h"
 #include "lufa.h"
 
-#define SLAVE_I2C_ADDRESS 0x19
+#define SLAVE_I2C_ADDRESS 0x32
 
 /* Set 0 if debouncing isn't needed */
 
-#ifndef DEBOUNCING_DELAY
-#   define DEBOUNCING_DELAY 5
+#ifndef DEBOUNCE
+#   define DEBOUNCE 5
 #endif
 
-#if (DEBOUNCING_DELAY > 0)
+#if (DEBOUNCE > 0)
     static uint16_t debouncing_time;
     static bool debouncing = false;
 #endif
@@ -48,18 +46,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #if (MATRIX_COLS <= 8)
 #    define print_matrix_header()  print("\nr/c 01234567\n")
 #    define print_matrix_row(row)  print_bin_reverse8(matrix_get_row(row))
-#    define matrix_bitpop(i)       bitpop(matrix[i])
-#    define ROW_SHIFTER ((uint8_t)1)
 #elif (MATRIX_COLS <= 16)
 #    define print_matrix_header()  print("\nr/c 0123456789ABCDEF\n")
 #    define print_matrix_row(row)  print_bin_reverse16(matrix_get_row(row))
-#    define matrix_bitpop(i)       bitpop16(matrix[i])
-#    define ROW_SHIFTER ((uint16_t)1)
 #elif (MATRIX_COLS <= 32)
 #    define print_matrix_header()  print("\nr/c 0123456789ABCDEF0123456789ABCDEF\n")
 #    define print_matrix_row(row)  print_bin_reverse32(matrix_get_row(row))
-#    define matrix_bitpop(i)       bitpop32(matrix[i])
-#    define ROW_SHIFTER  ((uint32_t)1)
 #endif
 
 #ifdef MATRIX_MASKED
@@ -90,16 +82,6 @@ static matrix_row_t matrix_debouncing[MATRIX_ROWS];
     static void unselect_col(uint8_t col);
     static void select_col(uint8_t col);
 #endif
-
-__attribute__ ((weak))
-void matrix_init_quantum(void) {
-    matrix_init_kb();
-}
-
-__attribute__ ((weak))
-void matrix_scan_quantum(void) {
-    matrix_scan_kb();
-}
 
 __attribute__ ((weak))
 void matrix_init_kb(void) {
@@ -146,7 +128,7 @@ void matrix_init(void) {
         matrix_debouncing[i] = 0;
     }
 
-    matrix_init_quantum();
+    matrix_init_kb();
 }
 
 uint8_t matrix_scan(void)
@@ -155,7 +137,7 @@ uint8_t matrix_scan(void)
 
     // Set row, read cols
     for (uint8_t current_row = 0; current_row < MATRIX_ROWS; current_row++) {
-#       if (DEBOUNCING_DELAY > 0)
+#       if (DEBOUNCE > 0)
             bool matrix_changed = read_cols_on_row(matrix_debouncing, current_row);
 
             if (matrix_changed) {
@@ -173,7 +155,7 @@ uint8_t matrix_scan(void)
 
     // Set col, read rows
     for (uint8_t current_col = 0; current_col < MATRIX_COLS; current_col++) {
-#       if (DEBOUNCING_DELAY > 0)
+#       if (DEBOUNCE > 0)
             bool matrix_changed = read_rows_on_col(matrix_debouncing, current_col);
             if (matrix_changed) {
                 debouncing = true;
@@ -187,38 +169,28 @@ uint8_t matrix_scan(void)
 
 #endif
 
-#   if (DEBOUNCING_DELAY > 0)
-        if (debouncing && (timer_elapsed(debouncing_time) > DEBOUNCING_DELAY)) {
+#   if (DEBOUNCE > 0)
+        if (debouncing && (timer_elapsed(debouncing_time) > DEBOUNCE)) {
             for (uint8_t i = 0; i < MATRIX_ROWS; i++) {
                 matrix[i] = matrix_debouncing[i];
             }
             debouncing = false;
         }
 #   endif
-        
-        if (USB_DeviceState != DEVICE_STATE_Configured){
-            txbuffer[1] = 0x55;
-            for (uint8_t i = 0; i < MATRIX_ROWS; i++){
-                txbuffer[i+2] = matrix[i]; //send matrix over i2c
-            }
-        }
-    
-    matrix_scan_quantum();
-    return 1;
-}
 
-bool matrix_is_modified(void)
-{
-#if (DEBOUNCING_DELAY > 0)
-    if (debouncing) return false;
-#endif
-    return true;
+    i2c_slave_reg[1] = 0x55;
+    for (uint8_t i = 0; i < MATRIX_ROWS; i++){
+        i2c_slave_reg[i+2] = matrix[i]; //send matrix over i2c
+    }
+
+    matrix_scan_kb();
+    return 1;
 }
 
 inline
 bool matrix_is_on(uint8_t row, uint8_t col)
 {
-    return (matrix[row] & ((matrix_row_t)1<col));
+    return (matrix[row] & ((matrix_row_t)1<<col));
 }
 
 inline
@@ -238,22 +210,11 @@ void matrix_print(void)
     print_matrix_header();
 
     for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
-        phex(row); print(": ");
+        print_hex8(row); print(": ");
         print_matrix_row(row);
         print("\n");
     }
 }
-
-uint8_t matrix_key_count(void)
-{
-    uint8_t count = 0;
-    for (uint8_t i = 0; i < MATRIX_ROWS; i++) {
-        count += matrix_bitpop(i);
-    }
-    return count;
-}
-
-
 
 #if (DIODE_DIRECTION == COL2ROW)
 
@@ -286,7 +247,7 @@ static bool read_cols_on_row(matrix_row_t current_matrix[], uint8_t current_row)
         uint8_t pin_state = (_SFR_IO8(pin >> 4) & _BV(pin & 0xF));
 
         // Populate the matrix row with the state of the col pin
-        current_matrix[current_row] |=  pin_state ? 0 : (ROW_SHIFTER << col_index);
+        current_matrix[current_row] |=  pin_state ? 0 : (MATRIX_ROW_SHIFTER << col_index);
     }
 
     // Unselect row
@@ -348,12 +309,12 @@ static bool read_rows_on_col(matrix_row_t current_matrix[], uint8_t current_col)
         if ((_SFR_IO8(row_pins[row_index] >> 4) & _BV(row_pins[row_index] & 0xF)) == 0)
         {
             // Pin LO, set col bit
-            current_matrix[row_index] |= (ROW_SHIFTER << current_col);
+            current_matrix[row_index] |= (MATRIX_ROW_SHIFTER << current_col);
         }
         else
         {
             // Pin HI, clear col bit
-            current_matrix[row_index] &= ~(ROW_SHIFTER << current_col);
+            current_matrix[row_index] &= ~(MATRIX_ROW_SHIFTER << current_col);
         }
 
         // Determine if the matrix changed state
@@ -396,9 +357,6 @@ static void unselect_cols(void)
 
 //this replases tmk code
 void matrix_setup(void){
-    
-    if (USB_DeviceState != DEVICE_STATE_Configured){
-        i2c_init(SLAVE_I2C_ADDRESS); //setup address of slave i2c
-        sei(); //enable interupts
-    }
+    i2c_slave_init(SLAVE_I2C_ADDRESS); //setup address of slave i2c
+    sei(); //enable interupts
 }

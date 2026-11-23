@@ -43,10 +43,10 @@ __attribute__ ((weak))
 void matrix_scan_user(void) {
 }
 
-#ifndef DEBOUNCING_DELAY
-#   define DEBOUNCING_DELAY 5
+#ifndef DEBOUNCE
+#   define DEBOUNCE 5
 #endif
-static uint8_t debouncing = DEBOUNCING_DELAY;
+static uint8_t debouncing = DEBOUNCE;
 
 static matrix_row_t matrix[MATRIX_ROWS];
 static matrix_row_t matrix_debouncing[MATRIX_ROWS];
@@ -99,7 +99,7 @@ void matrix_init(void) {
     for (uint8_t i=0; i < MATRIX_ROWS; i++)
         matrix[i] = matrix_debouncing[i] = 0;
 
-    matrix_init_quantum();
+    matrix_init_kb();
 }
 
 uint8_t matrix_scan(void) {
@@ -112,7 +112,7 @@ uint8_t matrix_scan(void) {
             bool curr_bit = col_scan & (1<<row);
             if (prev_bit != curr_bit) {
                 matrix_debouncing[row] ^= ((matrix_row_t)1<<col);
-                debouncing = DEBOUNCING_DELAY;
+                debouncing = DEBOUNCE;
             }
         }
     }
@@ -125,7 +125,7 @@ uint8_t matrix_scan(void) {
                 matrix[i] = matrix_debouncing[i];
     }
 
-    matrix_scan_quantum();
+    matrix_scan_kb();
     return 1;
 }
 
@@ -146,11 +146,4 @@ void matrix_print(void) {
         print("\n");
     }
 #endif
-}
-
-uint8_t matrix_key_count(void) {
-    uint8_t count = 0;
-    for (uint8_t row = 0; row < MATRIX_ROWS; row++)
-        count += bitpop32(matrix[row]);
-    return count;
 }

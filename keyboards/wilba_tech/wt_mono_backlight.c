@@ -15,32 +15,53 @@
  */
 
 #include "wt_mono_backlight.h"
-#include "drivers/avr/i2c_master.h"
-#include "drivers/issi/is31fl3736.h"
+#include "wt_rgb_backlight_api.h" // reuse these for now
+#include "wt_rgb_backlight_keycodes.h" // reuse these for now
 
+#include <stdlib.h>
 #include <avr/interrupt.h>
+#include "i2c_master.h"
+#include "host.h"
+#include "progmem.h"
+#include "eeconfig.h"
+#include "compiler_support.h"
 
-#define ISSI_ADDR_DEFAULT 0x50
+#include "drivers/led/issi/is31fl3736-mono.h"
+
+#define BACKLIGHT_EFFECT_MAX 3
+
+#ifndef MONO_BACKLIGHT_COLOR_1
+#define MONO_BACKLIGHT_COLOR_1 { .h = 0, .s = 255 }
+#endif
+
+backlight_config g_config = {
+    .disable_when_usb_suspended = MONO_BACKLIGHT_DISABLE_WHEN_USB_SUSPENDED,
+    .disable_after_timeout = MONO_BACKLIGHT_DISABLE_AFTER_TIMEOUT,
+    .brightness = MONO_BACKLIGHT_BRIGHTNESS,
+    .effect = MONO_BACKLIGHT_EFFECT,
+    .effect_speed = MONO_BACKLIGHT_EFFECT_SPEED,
+    .color_1 = MONO_BACKLIGHT_COLOR_1,
+};
+
+STATIC_ASSERT(sizeof(backlight_config) == EECONFIG_KB_DATA_SIZE, "Mismatch in keyboard EECONFIG stored data");
 
 bool g_suspend_state = false;
 
 // Global tick at 20 Hz
 uint32_t g_tick = 0;
-uint8_t g_config_effect_speed = 0;
-uint8_t g_config_brightness = 255;
+
+// Ticks since any key was last hit.
+uint32_t g_any_key_hit = 0;
 
 void backlight_init_drivers(void)
 {
-	// Initialize I2C
-	i2c_init();
-	IS31FL3736_init( ISSI_ADDR_DEFAULT );
-
-	for ( uint8_t index = 0; index < 96; index++ )	{
-		IS31FL3736_mono_set_led_control_register( index, true );
-	}
-	IS31FL3736_update_led_control_registers( ISSI_ADDR_DEFAULT, 0x00 );
+    is31fl3736_init_drivers();
 }
 
+void backlight_set_key_hit(uint8_t row, uint8_t column)
+{
+    g_any_key_hit = 0;
+}
 
 // This is (F_CPU/1024) / 20 Hz
 // = 15625 Hz / 20 Hz
@@ -82,11 +103,85 @@ void backlight_set_suspend_state(bool state)
 	g_suspend_state = state;
 }
 
+void backlight_set_brightness_all( uint8_t value )
+{
+	is31fl3736_set_value_all( value );
+}
+
+void backlight_effect_all_off(void)
+{
+	is31fl3736_set_value_all( 0 );
+}
+
+void backlight_effect_all_on(void)
+{
+	is31fl3736_set_value_all( g_config.brightness );
+}
+
+void backlight_effect_raindrops(bool initialize)
+{
+    // Change one LED every tick
+    uint8_t led_to_change = ( g_tick & 0x000 ) == 0 ? rand() % 96 : 255;
+
+    for ( int i=0; i<96; i++ )
+    {
+        // If initialize, all get set to random brightness
+        // If not, all but one will stay the same as before.
+        if ( initialize || i == led_to_change )
+        {
+            is31fl3736_set_value(i, rand() & 0xFF );
+        }
+    }
+}
+
 void backlight_effect_cycle_all(void)
 {
-	uint8_t offset = ( g_tick << g_config_effect_speed ) & 0xFF;
+	uint8_t offset = ( g_tick << g_config.effect_speed ) & 0xFF;
 
 	backlight_set_brightness_all( offset );
+}
+
+// This runs after another backlight effect and replaces
+// colors already set
+void backlight_effect_indicators(void)
+{
+#if defined(MONO_BACKLIGHT_WT75_A)
+    hsv_t hsv = { .h = g_config.color_1.h, .s = g_config.color_1.s, .v = g_config.brightness };
+    rgb_t rgb = hsv_to_rgb( hsv );
+    // SW7,CS8 = (6*8+7) = 55
+    // SW8,CS8 = (7*8+7) = 63
+    // SW9,CS8 = (8*8+7) = 71
+    is31fl3736_set_value(55, rgb.r);
+    is31fl3736_set_value(63, rgb.g);
+    is31fl3736_set_value(71, rgb.b);
+#endif // MONO_BACKLIGHT_WT75_A
+
+// This pairs with "All Off" already setting zero brightness,
+// and "All On" already setting non-zero brightness.
+#if defined(MONO_BACKLIGHT_WT60_A) || \
+defined(MONO_BACKLIGHT_WT65_A) || \
+defined(MONO_BACKLIGHT_WT65_B) || \
+defined(MONO_BACKLIGHT_WT75_A) || \
+defined(MONO_BACKLIGHT_WT75_B) || \
+defined(MONO_BACKLIGHT_WT75_C) || \
+defined(MONO_BACKLIGHT_WT80_A)
+    if ( host_keyboard_led_state().caps_lock ) {
+        // SW3,CS1 = (2*8+0) = 16
+        is31fl3736_set_value(16, 255);
+    }
+#endif
+#if defined(MONO_BACKLIGHT_WT80_A)
+    if ( host_keyboard_led_state().scroll_lock ) {
+        // SW7,CS7 = (6*8+6) = 54
+        is31fl3736_set_value(54, 255);
+    }
+#endif
+#if defined(MONO_BACKLIGHT_WT75_C)
+    if ( host_keyboard_led_state().scroll_lock ) {
+        // SW7,CS8 = (6*8+7) = 55
+        is31fl3736_set_value(55, 255);
+    }
+#endif
 }
 
 ISR(TIMER3_COMPA_vect)
@@ -100,17 +195,278 @@ ISR(TIMER3_COMPA_vect)
 
 	g_tick++;
 
-	//backlight_effect_cycle_all();
-	backlight_set_brightness_all( 255 );
+    if ( g_any_key_hit < 0xFFFFFFFF )
+    {
+        g_any_key_hit++;
+    }
+
+    // Ideally we would also stop sending zeros to the LED driver PWM buffers
+    // while suspended and just do a software shutdown. This is a cheap hack for now.
+    bool suspend_backlight = ((g_suspend_state && g_config.disable_when_usb_suspended) ||
+            (g_config.disable_after_timeout > 0 && g_any_key_hit > g_config.disable_after_timeout * 60 * 20));
+    uint8_t effect = suspend_backlight ? 0 : g_config.effect;
+
+    // Keep track of the effect used last time,
+    // detect change in effect, so each effect can
+    // have an optional initialization.
+    static uint8_t effect_last = 255;
+    bool initialize = effect != effect_last;
+    effect_last = effect;
+
+    // this gets ticked at 20 Hz.
+    // each effect can opt to do calculations
+    // and/or request PWM buffer updates.
+    switch ( effect )
+    {
+        case 0:
+            backlight_effect_all_off();
+            break;
+        case 1:
+            backlight_effect_all_on();;
+            break;
+        case 2:
+            backlight_effect_raindrops(initialize);
+            break;
+        default:
+            backlight_effect_all_off();
+            break;
+	}
+
+    if ( ! suspend_backlight )
+    {
+        backlight_effect_indicators();
+    }
+}
+
+// Some helpers for setting/getting HSV
+void _set_color( HS *color, uint8_t *data )
+{
+    color->h = data[0];
+    color->s = data[1];
+}
+
+void _get_color( HS *color, uint8_t *data )
+{
+    data[0] = color->h;
+    data[1] = color->s;
+}
+
+void backlight_config_set_value( uint8_t *data )
+{
+    bool reinitialize = false;
+    uint8_t *value_id = &(data[0]);
+    uint8_t *value_data = &(data[1]);
+    switch ( *value_id )
+    {
+        case id_disable_when_usb_suspended:
+        {
+            g_config.disable_when_usb_suspended = (bool)*value_data;
+            break;
+        }
+        case id_disable_after_timeout:
+        {
+            g_config.disable_after_timeout = *value_data;
+            break;
+        }
+        case id_brightness:
+        {
+            g_config.brightness = *value_data;
+            break;
+        }
+        case id_effect:
+        {
+            g_config.effect = *value_data;
+            break;
+        }
+        case id_effect_speed:
+        {
+            g_config.effect_speed = *value_data;
+            break;
+        }
+        case id_color_1:
+        {
+            _set_color( &(g_config.color_1), value_data );
+            break;
+        }
+    }
+
+    if ( reinitialize )
+    {
+        backlight_init_drivers();
+    }
+}
+
+void backlight_config_get_value( uint8_t *data )
+{
+    uint8_t *value_id = &(data[0]);
+    uint8_t *value_data = &(data[1]);
+    switch ( *value_id )
+    {
+        case id_disable_when_usb_suspended:
+        {
+            *value_data = ( g_config.disable_when_usb_suspended ? 1 : 0 );
+            break;
+        }
+        case id_disable_after_timeout:
+        {
+            *value_data = g_config.disable_after_timeout;
+            break;
+        }
+        case id_brightness:
+        {
+            *value_data = g_config.brightness;
+            break;
+        }
+        case id_effect:
+        {
+            *value_data = g_config.effect;
+            break;
+        }
+        case id_effect_speed:
+        {
+            *value_data = g_config.effect_speed;
+            break;
+        }
+        case id_color_1:
+        {
+            _get_color( &(g_config.color_1), value_data );
+            break;
+        }
+    }
+}
+
+void eeconfig_init_kb_datablock(void) {
+    backlight_config_save();
+}
+
+void backlight_config_load(void) {
+    eeconfig_read_kb_datablock( &g_config, 0, sizeof(backlight_config) );
+}
+
+void backlight_config_save(void) {
+    eeconfig_update_kb_datablock( &g_config, 0, sizeof(backlight_config) );
 }
 
 void backlight_update_pwm_buffers(void)
 {
-	IS31FL3736_update_pwm_buffers(ISSI_ADDR_DEFAULT,0x00);
+    is31fl3736_flush();
 }
 
-void backlight_set_brightness_all( uint8_t value )
+bool process_record_backlight(uint16_t keycode, keyrecord_t *record)
 {
-	IS31FL3736_mono_set_brightness_all( value );
+    // Record keypresses for backlight effects
+    if ( record->event.pressed )
+    {
+        backlight_set_key_hit( record->event.key.row, record->event.key.col );
+    }
+
+    switch(keycode)
+    {
+        case BR_INC:
+            if (record->event.pressed)
+            {
+                backlight_brightness_increase();
+            }
+            return false;
+            break;
+        case BR_DEC:
+            if (record->event.pressed)
+            {
+                backlight_brightness_decrease();
+            }
+            return false;
+            break;
+        case EF_INC:
+            if (record->event.pressed)
+            {
+                backlight_effect_increase();
+            }
+            return false;
+            break;
+        case EF_DEC:
+            if (record->event.pressed)
+            {
+                backlight_effect_decrease();
+            }
+            return false;
+            break;
+        case ES_INC:
+            if (record->event.pressed)
+            {
+                backlight_effect_speed_increase();
+            }
+            return false;
+            break;
+        case ES_DEC:
+            if (record->event.pressed)
+            {
+                backlight_effect_speed_decrease();
+            }
+            return false;
+            break;
+    }
+
+    return true;
 }
 
+// Deals with the messy details of incrementing an integer
+uint8_t increment( uint8_t value, uint8_t step, uint8_t min, uint8_t max )
+{
+    int16_t new_value = value;
+    new_value += step;
+    return MIN( MAX( new_value, min ), max );
+}
+
+uint8_t decrement( uint8_t value, uint8_t step, uint8_t min, uint8_t max )
+{
+    int16_t new_value = value;
+    new_value -= step;
+    return MIN( MAX( new_value, min ), max );
+}
+
+void backlight_effect_increase(void)
+{
+    g_config.effect = increment( g_config.effect, 1, 0, BACKLIGHT_EFFECT_MAX );
+    backlight_config_save();
+}
+
+void backlight_effect_decrease(void)
+{
+    g_config.effect = decrement( g_config.effect, 1, 0, BACKLIGHT_EFFECT_MAX );
+    backlight_config_save();
+}
+
+void backlight_effect_speed_increase(void)
+{
+    g_config.effect_speed = increment( g_config.effect_speed, 1, 0, 3 );
+    backlight_config_save();
+}
+
+void backlight_effect_speed_decrease(void)
+{
+    g_config.effect_speed = decrement( g_config.effect_speed, 1, 0, 3 );
+    backlight_config_save();
+}
+
+void backlight_brightness_increase(void)
+{
+    g_config.brightness = increment( g_config.brightness, 8, 0, 255 );
+    backlight_config_save();
+}
+
+void backlight_brightness_decrease(void)
+{
+    g_config.brightness = decrement( g_config.brightness, 8, 0, 255 );
+    backlight_config_save();
+}
+
+void backlight_device_indication(uint8_t value)
+{
+    static uint8_t current_effect = 0;
+    static uint8_t alternate_effect = 0;
+    if ( value == 0 ) {
+        current_effect = g_config.effect;
+        alternate_effect = g_config.effect > 0 ? 0 : 1;
+    }
+    g_config.effect = value % 2 == 0 ? alternate_effect : current_effect;
+}

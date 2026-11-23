@@ -1,5 +1,24 @@
 #include "frenchdev.h"
-#include "i2cmaster.h"
+
+extern inline void frenchdev_board_led_on(void);
+extern inline void frenchdev_led_1_on(void);
+extern inline void frenchdev_led_2_on(void);
+extern inline void frenchdev_led_3_on(void);
+
+extern inline void frenchdev_board_led_off(void);
+extern inline void frenchdev_led_1_off(void);
+extern inline void frenchdev_led_2_off(void);
+extern inline void frenchdev_led_3_off(void);
+
+extern inline void frenchdev_led_all_on(void);
+extern inline void frenchdev_led_all_off(void);
+
+extern inline void frenchdev_led_1_set(uint8_t n);
+extern inline void frenchdev_led_2_set(uint8_t n);
+extern inline void frenchdev_led_3_set(uint8_t n);
+extern inline void frenchdev_led_set(uint8_t led, uint8_t n);
+
+extern inline void frenchdev_led_all_set(uint8_t n);
 
 bool i2c_initialized = 0;
 uint8_t mcp23018_status = 0x20;
@@ -11,12 +30,11 @@ void matrix_init_kb(void) {
 
 
 
-    // unused pins - D4, D5, D7, E6
+    // unused pins - D4, D5, E6
     // set as input with internal pull-ip enabled
-    DDRD  &= ~(1<<5 | 1<<4);
-    DDRE  &= ~(1<<6);
-    PORTD |=  (1<<5 | 1<<4);
-    PORTE |=  (1<<6);
+    gpio_set_pin_input_high(D4);
+    gpio_set_pin_input_high(D5);
+    gpio_set_pin_input_high(E6);
 
     frenchdev_blink_all_leds();
     frenchdev_blink_all_leds();
@@ -31,15 +49,15 @@ void frenchdev_blink_all_leds(void)
     frenchdev_led_all_off();
     frenchdev_led_all_set(LED_BRIGHTNESS_HI);
     frenchdev_led_1_on();
-    _delay_ms(50);
+    wait_ms(50);
     frenchdev_led_2_on();
-    _delay_ms(50);
+    wait_ms(50);
     frenchdev_led_3_on();
-    _delay_ms(50);
+    wait_ms(50);
     frenchdev_led_1_off();
-    _delay_ms(50);
+    wait_ms(50);
     frenchdev_led_2_off();
-    _delay_ms(50);
+    wait_ms(50);
     frenchdev_led_3_off();
     frenchdev_led_all_off();
 }
@@ -54,34 +72,26 @@ uint8_t init_mcp23018(void) {
     // cli();
     if (i2c_initialized == 0) {
         i2c_init();  // on pins D(1,0)
-        i2c_initialized++;
-        _delay_ms(1000);
+        i2c_initialized = true;;
+        wait_ms(1000);
     }
 
     // set pin direction
     // - unused  : input  : 1
     // - input   : input  : 1
     // - driving : output : 0
-    mcp23018_status = i2c_start(I2C_ADDR_WRITE);    if (mcp23018_status) goto out;
-    mcp23018_status = i2c_write(IODIRA);            if (mcp23018_status) goto out;
-    mcp23018_status = i2c_write(0b00000000);        if (mcp23018_status) goto out;
-    mcp23018_status = i2c_write(0b00111111);        if (mcp23018_status) goto out;
-    i2c_stop();
+    uint8_t data[] = {0b00000000, 0b00111111};
+    mcp23018_status = i2c_write_register(I2C_ADDR, IODIRA, data, sizeof(data), I2C_TIMEOUT);
 
-    // set pull-up
-    // - unused  : on  : 1
-    // - input   : on  : 1
-    // - driving : off : 0
-    mcp23018_status = i2c_start(I2C_ADDR_WRITE);    if (mcp23018_status) goto out;
-    mcp23018_status = i2c_write(GPPUA);             if (mcp23018_status) goto out;
-    mcp23018_status = i2c_write(0b00000000);        if (mcp23018_status) goto out;
-    mcp23018_status = i2c_write(0b00111111);        if (mcp23018_status) goto out;
-
-out:
-    i2c_stop();
+    if (!mcp23018_status) {
+        // set pull-up
+        // - unused  : on  : 1
+        // - input   : on  : 1
+        // - driving : off : 0
+        mcp23018_status = i2c_write_register(I2C_ADDR, GPPUA, data, sizeof(data), I2C_TIMEOUT);
+    }
 
     // SREG=sreg_prev;
 
     return mcp23018_status;
 }
-

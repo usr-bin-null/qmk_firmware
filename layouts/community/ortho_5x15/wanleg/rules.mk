@@ -1,1 +1,0 @@
-SWAP_HANDS_ENABLE = no

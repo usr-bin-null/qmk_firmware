@@ -1,15 +1,6 @@
-#ifndef CONFIG_USER_H
-#define CONFIG_USER_H
-
-#include "../../config.h"
+#pragma once
 
 #define PRIYADI_PROMETHIUM
-
-/* bootmagic salt key */
-#define BOOTMAGIC_KEY_SALT              KC_ESC
-
-/* skip bootmagic and eeconfig */
-#define BOOTMAGIC_KEY_SKIP              KC_SPACE
 
 #define RGBSPS_ENABLE
 #define RGBSPS_DEMO_ENABLE
@@ -23,5 +14,3 @@
 
 #define DOUBLESPACE_LAYER_ENABLE
 // #define TOLELOT_ENABLE
-
-#endif

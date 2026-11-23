@@ -15,40 +15,11 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CONFIG_H
-#define CONFIG_H
+#pragma once
 
-#include "config_common.h"
-
-/* USB Device descriptor parameter */
-#define VENDOR_ID       0xFEED
-#define PRODUCT_ID      0x6050
-#define DEVICE_VER      0x0104
-#define MANUFACTURER    Duck
-#define PRODUCT         Octagon V1
-#define DESCRIPTION     Duck Octagon V1
 
 /* key matrix size */
 #define MATRIX_ROWS 6
 #define MATRIX_COLS 16
 
 #define DIODE_DIRECTION COL2ROW
-
-/* Debounce reduces chatter (unintended double-presses) - set 0 if debouncing is not needed */
-#define DEBOUNCING_DELAY 5
-
-/* number of backlight levels */
-#define BACKLIGHT_LEVELS 1
-
-/* key combination for magic key command */
-#define IS_COMMAND() ( \
-    keyboard_report->mods == (MOD_BIT(KC_LSHIFT) | MOD_BIT(KC_RSHIFT)) \
-)
-
-#define RGBLIGHT_ANIMATIONS
-#define RGB_DI_PIN D6
-#define RGBLED_NUM 17
-
-#define TAPPING_TERM 200
-
-#endif
